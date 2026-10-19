@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TERRA // Interaktiver 3D-Globus & Mini-Games</title>
+    <script src="https://unpkg.com/globe.gl"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Space Grotesk', sans-serif;
+            user-select: none;
+        }
+        body {
+            background-color: #03050a;
+            color: #ffffff;
+            overflow: hidden;
+        }
+        #globeViz {
+            width: 100vw;
+            height: 100vh;
+            cursor: grab;
+        }
+        #globeViz:active {
+            cursor: grabbing;
+        }
+
+        /* UI Overlays (Glassmorphism) */
+        .glass-panel {
+            background: rgba(12, 18, 32, 0.75);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 210, 255, 0.25);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 210, 255, 0.1);
+        }
+
+        /* Header & Mode Switcher */
+        header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 12px 28px;
+            z-index: 10;
+        }
+        .logo {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
+        }
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: #b0c4de;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 8px 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.25s ease;
+        }
+        .btn:hover {
+            background: rgba(0, 210, 255, 0.15);
+            color: #fff;
+            border-color: #00d2ff;
+            transform: translateY(-2px);
+        }
+        .btn.active {
+            background: linear-gradient(135deg, #00d2ff, #0072ff);
+            color: #fff;
+            border-color: transparent;
+            box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+        }
+
+        /* Scoreboard */
+        .stats-bar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+            font-weight: 600;
+        }
+        .stat-item span {
+            color: #00d2ff;
+            font-size: 1.2rem;
+            margin-left: 6px;
+        }
+
+        /* Side Info & Game Panel */
+        #side-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 380px;
+            max-width: calc(100vw - 60px);
+            padding: 24px;
+            z-index: 10;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .panel-tag {
+            display: inline-block;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            background: rgba(0, 210, 255, 0.2);
+            color: #00d2ff;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        #panel-title {
+            font-size: 1.6rem;
+            margin-bottom: 10px;
+            line-height: 1.2;
+        }
+        #panel-desc {
+            color: #cbd5e1;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        /* Quiz & Game Options */
+        #quiz-options {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .option-btn {
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            text-align: left;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .option-btn:hover {
+            background: rgba(0, 210, 255, 0.2);
+            border-color: #00d2ff;
+        }
+        .option-btn.correct {
+            background: rgba(16, 185, 129, 0.3);
+            border-color: #10b981;
+        }
+        .option-btn.wrong {
+            background: rgba(239, 68, 68, 0.3);
+            border-color: #ef4444;
+        }
+
+        /* Controls Hint */
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 16px;
+            font-size: 0.8rem;
+            color: #94a3b8;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="glass-panel">
+        <div class="logo">TERRA 3D</div>
+        <div class="nav-buttons">
+            <button class="btn active" onclick="setMode('explore')" id="btn-explore">🌍 Entdecken</button>
+            <button class="btn" onclick="setMode('hunt')" id="btn-hunt">🎯 Pin-Jagd</button>
+            <button class="btn" onclick="setMode('quiz')" id="btn-quiz">🧠 Erde-Quiz</button>
+        </div>
+    </header>
+
+    <div class="stats-bar glass-panel">
+        <div class="stat-item">Punkte: <span id="score">0</span></div>
+        <div class="stat-item">Streak: <span id="streak">0</span>🔥</div>
+    </div>
+
+    <div id="side-panel" class="glass-panel">
+        <div class="panel-tag" id="panel-tag">Entdecker-Modus</div>
+        <h2 id="panel-title">Willkommen im Orbit</h2>
+        <p id="panel-desc">Drehe den Globus mit der Maus und klicke auf die leuchtenden Energie-Marker, um spannende Geheimnisse und Rekorde unserer Erde zu lüften.</p>
+        <div id="quiz-options"></div>
+    </div>
+
+    <div class="controls-hint glass-panel">
+        🖱️ Links ziehen: Drehen | 🖱️ Rechts ziehen: Schwenken | 📜 Scrollen: Zoomen
+    </div>
+
+    <div id="globeViz"></div>
+
+    <script>
+        // 1. Datenbank: Orte, Wissen & Quizfragen
+        const locations = [
+            {
+                id: 1,
+                name: "Marianengraben",
+                region: "Pazifischer Ozean",
+                lat: 11.35,
+                lng: 142.2,
+                color: "#00d2ff",
+                fact: "Der tiefste Punkt der Erde! Das 'Challenger-Tief' reicht rund 11.000 Meter unter die Meeresoberfläche. Würde man den Mount Everest hineinstellen, wären über 2 Kilometer Wasser darüber.",
+                quizQuestion: "Wie tief ist der Marianengraben an seiner tiefsten Stelle ungefähr?",
+                options: ["Ca. 4.500 Meter", "Ca. 8.848 Meter", "Ca. 11.000 Meter"],
+                answer: 2
+            },
+            {
+                id: 2,
+                name: "Amazonas-Regenwald",
+                region: "Südamerika",
+                lat: -3.46,
+                lng: -62.21,
+                color: "#10b981",
+                fact: "Hier befindet sich die größte Artenvielfalt der Welt. Ein einziger Hektar Regenwald beherbergt oft mehr Baumarten als ganz Europa zusammen!",
+                quizQuestion: "Welcher Fluss fließt durch dieses riesige Ökosystem und ist der wasserreichste der Erde?",
+                options: ["Nil", "Amazonas", "Jangtsekiang"],
+                answer: 1
+            },
+            {
+                id: 3,
+                name: "Mount Everest",
+                region: "Himalaya (Nepal / Tibet)",
+                lat: 27.98,
+                lng: 86.92,
+                color: "#f59e0b",
+                fact: "Mit 8.848 Metern der höchste Berg über dem Meeresspiegel. Durch die Kollision der indischen und eurasischen Erdplatten wächst er jedes Jahr noch um einige Millimeter.",
+                quizQuestion: "Warum wächst der Mount Everest auch heute noch leicht weiter?",
+                options: ["Durch Vulkanausbrüche", "Durch das Zusammenstoßen von Erdplatten", "Durch ewiges Eis an der Spitze"],
+                answer: 1
+            },
+            {
+                id: 4,
+                name: "Great Barrier Reef",
+                region: "Australien",
+                lat: -18.28,
+                lng: 147.69,
+                color: "#ec4899",
+                fact: "Das größte von Lebewesen geschaffene Strukturgebilde der Erde! Es erstreckt sich über 2.300 Kilometer und ist sogar aus dem Weltall mit bloßem Auge erkennbar.",
+                quizQuestion: "Woraus besteht das Great Barrier Reef hauptsächlich?",
+                options: ["Aus Vulkanstein", "Aus Milliarden winziger Korallenpolypen", "Aus versteinerten Algen"],
+                answer: 1
+            },
+            {
+                id: 5,
+                name: "Sahara-Wüste",
+                region: "Nordafrika",
+                lat: 23.41,
+                lng: 15.66,
+                color: "#eab308",
+                fact: "Die größte Trockenwüste der Erde ist fast so groß wie die gesamten USA. Überraschend: Nur etwa 20 % bestehen aus Sanddünen, der Rest sind Stein- und Geröllwüsten.",
+                quizQuestion: "Woraus besteht der Großteil der Sahara-Oberfläche?",
+                options: ["Feiner Wüstensand", "Stein- und Geröllflächen", "Salzkrusten"],
+                answer: 1
+            },
+            {
+                id: 6,
+                name: "Salar de Uyuni",
+                region: "Bolivien",
+                lat: -20.13,
+                lng: -67.48,
+                color: "#a855f7",
+                fact: "Die größte Salzpfanne der Erde! In der Regenzeit verwandelt eine dünne Wasserschicht die Fläche in den größten natürlichen Spiegel der Welt. Zudem lagert hier ein Großteil des weltweiten Lithiums.",
+                quizQuestion: "Welcher wichtige Rohstoff für E-Auto-Batterien lagert unter dem Salar de Uyuni?",
+                options: ["Lithium", "Kupfer", "Platin"],
+                answer: 0
+            },
+            {
+                id: 7,
+                name: "Krakatau & Pazifischer Feuerring",
+                region: "Indonesien",
+                lat: -6.10,
+                lng: 105.42,
+                color: "#ef4444",
+                fact: "Der Ausbruch des Krakatau im Jahr 1883 erzeugte das lauteste Geräusch der modernen Geschichte. Die Druckwelle umrundete die Erde siebenmal!",
+                quizQuestion: "Wie oft umrundete die Schall- und Druckwelle des Krakatau-Ausbruchs 1883 unseren Planeten?",
+                options: ["Einmal", "Dreimal", "Siebenmal"],
+                answer: 2
+            },
+            {
+                id: 8,
+                name: "Antarktisches Eisschild",
+                region: "Südpol",
+                lat: -82.86,
+                lng: 135.00,
+                color: "#38bdf8",
+                fact: "Die Antarktis speichert rund 70 % des weltweiten Süßwassers in Form von Eis. Der kälteste jemals dort gemessene Wert liegt bei eisigen -89,2 °C.",
+                quizQuestion: "Wie viel Prozent des weltweiten Süßwassers ist im Eis der Antarktis gebunden?",
+                options: ["Etwa 15 %", "Etwa 40 %", "Etwa 70 %"],
+                answer: 2
+            },
+            {
+                id: 9,
+                name: "Island – Mittelatlantischer Rücken",
+                region: "Nordatlantik",
+                lat: 64.96,
+                lng: -19.02,
+                color: "#22d3ee",
+                fact: "Auf Island kann man buchstäblich zwischen zwei Kontinenten spazieren: Hier driften die nordamerikanische und die eurasische Kontinentalplatte auseinander.",
+                quizQuestion: "Welche zwei Kontinentalplatten driften mitten durch Island auseinander?",
+                options: ["Afrikanische & Eurasische", "Nordamerikanische & Eurasische", "Pazifische & Nordamerikanische"],
+                answer: 1
+            },
+            {
+                id: 10,
+                name: "Baikalsee",
+                region: "Sibirien (Russland)",
+                lat: 53.55,
+                lng: 108.16,
+                color: "#60a5fa",
+                fact: "Mit 1.642 Metern der tiefste und mit über 25 Millionen Jahren auch der älteste Süßwassersee der Erde. Im Winter friert er so klar zu, dass man meterweit in die Tiefe blicken kann.",
+                quizQuestion: "Welchen doppelten Weltrekord hält der Baikalsee unter allen Seen der Erde?",
+                options: ["Wärmster und salzigster See", "Tiefster und ältester See", "Höchstgelegener und jüngster See"],
+                answer: 1
+            }
+        ];
+
+        // 2. Globale Spielvariablen
+        let currentMode = 'explore'; // 'explore', 'hunt', 'quiz'
+        let score = 0;
+        let streak = 0;
+        let currentTarget = null;
+
+        // 3. 3D-Globus initialisieren
+        const globeElement = document.getElementById('globeViz');
+        const world = Globe()(globeElement)
+            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
+            .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+            .showAtmosphere(true)
+            .atmosphereColor('#00d2ff')
+            .atmosphereAltitude(0.22)
+            // Leuchtende 3D-Säulen (Points)
+            .pointsData(locations)
+            .pointLat('lat')
+            .pointLng('lng')
+            .pointColor('color')
+            .pointAltitude(0.06)
+            .pointRadius(0.65)
+            // Pulsierende Ringe um die Hotspots
+            .ringsData(locations)
+            .ringLat('lat')
+            .ringLng('lng')
+            .ringColor(d => t => `rgba(0, 210, 255, ${1 - t})`)
+            .ringMaxRadius(4.5)
+            .ringPropagationSpeed(2)
+            .ringRepeatPeriod(900)
+            // Labels auf dem Globus
+            .labelsData(locations)
+            .labelLat('lat')
+            .labelLng('lng')
+            .labelText(d => currentMode === 'hunt' ? '?' : d.name)
+            .labelSize(1.3)
+            .labelDotRadius(0.4)
+            .labelColor(() => 'rgba(255, 255, 255, 0.9)')
+            .labelResolution(2)
+            .labelAltitude(0.07)
+            // Klick-Events auf Marker oder Labels
+            .onPointClick(handleLocationClick)
+            .onLabelClick(handleLocationClick);
+
+        // Automatische Rotation aktivieren
+        world.controls().autoRotate = true;
+        world.controls().autoRotateSpeed = 0.6;
+        world.controls().enableDamping = true;
+
+        // Stoppe Auto-Rotation kurz beim Interagieren
+        globeElement.addEventListener('mousedown', () => {
+            world.controls().autoRotate = false;
+        });
+
+        // Fenstergröße dynamisch anpassen
+        window.addEventListener('resize', () => {
+            world.width(window.innerWidth).height(window.innerHeight);
+        });
+
+        // 4. Kamera-Flug-Funktion & Netzwerk-Bögen (Arcs)
+        let lastLocation = null;
+        function flyToLocation(loc, altitude = 1.6) {
+            world.pointOfView({ lat: loc.lat, lng: loc.lng, altitude: altitude }, 1400);
+            
+            // Zeichne einen animierten Laser-Bogen vom letzten Ort zum neuen Ort
+            if (lastLocation && lastLocation.id !== loc.id) {
+                world.arcsData([{
+                    startLat: lastLocation.lat,
+                    startLng: lastLocation.lng,
+                    endLat: loc.lat,
+                    endLng: loc.lng,
+                    color: ['#00d2ff', loc.color]
+                }])
+                .arcColor('color')
+                .arcDashLength(0.4)
+                .arcDashGap(0.2)
+                .arcDashAnimateTime(1500)
+                .arcStroke(0.8);
+            }
+            lastLocation = loc;
+        }
+
+        // 5. Modus-Steuerung
+        function setMode(mode) {
+            currentMode = mode;
+            document.querySelectorAll('.nav-buttons .btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`btn-${mode}`).classList.add('active');
+
+            const quizOptions = document.getElementById('quiz-options');
+            quizOptions.style.display = 'none';
+
+            // Labels aktualisieren (Im Pin-Jagd-Modus Namen verstecken!)
+            world.labelText(d => currentMode === 'hunt' ? '❓' : d.name);
+
+            if (mode === 'explore') {
+                updatePanel("Entdecker-Modus", "Wähle einen Ort auf der Erde", "Klicke auf einen beliebigen leuchtenden Punkt auf dem Globus, um hinzuzoomen und Fakten über unseren Planeten zu erfahren.");
+                world.controls().autoRotate = true;
+                world.pointOfView({ altitude: 2.2 }, 1200);
+            } 
+            else if (mode === 'hunt') {
+                world.controls().autoRotate = false;
+                startNextHunt();
+            } 
+            else if (mode === 'quiz') {
+                world.controls().autoRotate = false;
+                startNextQuiz();
+            }
+        }
+
+        // 6. Klick-Logik für Globus-Hotspots
+        function handleLocationClick(loc) {
+            if (currentMode === 'explore') {
+                flyToLocation(loc, 1.4);
+                updatePanel(loc.region, loc.name, loc.fact);
+            } 
+            else if (currentMode === 'hunt') {
+                if (!currentTarget) return;
+                
+                if (loc.id === currentTarget.id) {
+                    // Richtiger Pin gefunden!
+                    addScore(100);
+                    flyToLocation(loc, 1.5);
+                    updatePanel("✅ Volltreffer!", loc.name, `Stark! Du hast ${loc.name} (${loc.region}) gefunden. Nächstes Ziel lädt in 2,5 Sekunden...`);
+                    currentTarget = null;
+                    setTimeout(() => {
+                        if (currentMode === 'hunt') startNextHunt();
+                    }, 2500);
+                } else {
+                    // Falscher Pin!
+                    resetStreak();
+                    updatePanel("❌ Daneben!", `Das ist: ${loc.name}`, `Gesucht wird aber: "${currentTarget.name}" (${currentTarget.region}). Dreh den Globus und versuch es nochmal!`);
+                }
+            }
+            else if (currentMode === 'quiz') {
+                flyToLocation(loc, 1.5);
+            }
+        }
+
+        // 7. Mini-Game 1: Pin-Jagd (Geo-Hunter)
+        function startNextHunt() {
+            const randomLoc = locations[Math.floor(Math.random() * locations.length)];
+            currentTarget = randomLoc;
+            // Kamera leicht herauszoomen, damit man suchen muss
+            world.pointOfView({ altitude: 2.3 }, 1000);
+            updatePanel(
+                "🎯 Pin-Jagd Mission", 
+                `Finde: ${randomLoc.name}`, 
+                `Hinweis: Dieser Ort befindet sich in der Region "${randomLoc.region}". Suche den richtigen Pin auf dem Globus und klicke ihn an!`
+            );
+        }
+
+        // 8. Mini-Game 2: Erde-Quiz
+        function startNextQuiz() {
+            const randomLoc = locations[Math.floor(Math.random() * locations.length)];
+            currentTarget = randomLoc;
+            
+            // Fliege direkt zum Ort der Frage
+            flyToLocation(randomLoc, 1.5);
+            
+            updatePanel(
+                `🧠 Quiz: ${randomLoc.name}`,
+                randomLoc.quizQuestion,
+                `Ort: ${randomLoc.region}`
+            );
+
+            const quizContainer = document.getElementById('quiz-options');
+            quizContainer.innerHTML = '';
+            quizContainer.style.display = 'flex';
+
+            randomLoc.options.forEach((optText, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = optText;
+                btn.onclick = () => checkQuizAnswer(idx, btn);
+                quizContainer.appendChild(btn);
+            });
+        }
+
+        function checkQuizAnswer(selectedIndex, btnElement) {
+            const allButtons = document.querySelectorAll('.option-btn');
+            allButtons.forEach(b => b.disabled = true);
+
+            if (selectedIndex === currentTarget.answer) {
+                btnElement.classList.add('correct');
+                addScore(150);
+                document.getElementById('panel-desc').innerText = "✅ Richtig! " + currentTarget.fact;
+            } else {
+                btnElement.classList.add('wrong');
+                allButtons[currentTarget.answer].classList.add('correct');
+                resetStreak();
+                document.getElementById('panel-desc').innerText = "❌ Leider falsch! " + currentTarget.fact;
+            }
+
+            setTimeout(() => {
+                if (currentMode === 'quiz') startNextQuiz();
+            }, 3800);
+        }
+
+        // 9. Hilfsfunktionen für UI & Score
+        function updatePanel(tag, title, desc) {
+            document.getElementById('panel-tag').innerText = tag;
+            document.getElementById('panel-title').innerText = title;
+            document.getElementById('panel-desc').innerText = desc;
+        }
+
+        function addScore(points) {
+            streak++;
+            score += points + (streak * 10);
+            document.getElementById('score').innerText = score;
+            document.getElementById('streak').innerText = streak;
+        }
+
+        function resetStreak() {
+            streak = 0;
+            document.getElementById('streak').innerText = streak;
+        }
+    </script>
+</body>
+</html>
