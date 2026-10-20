@@ -1,45 +1,49 @@
-# 🌍 VibeCoded-GeoGame
+# 🌍 VibeCoded GeoGame v2.0 — World Explorer Edition
 
-> An ultra-stylish interactive 3D Globe web app featuring stunning atmosphere visuals, smooth orbit animations, educational facts, and addictive mini-games! 🚀✨
-
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black)
-![WebGL](https://img.shields.io/badge/WebGL-990000?style=for-the-badge&logo=webgl&logoColor=white)
-![Three.js](https://img.shields.io/badge/Three.js-black?style=for-the-badge&logo=three.js&logoColor=white)
+Ein modernes, interaktives Geografie-Webgame im **Glassmorphism Dark-Mode Design**. Entwickelt als schnelle Single-File Web-Applikation ohne Build-Step – einfach im Browser öffnen und loslegen.
 
 ---
 
-## 🚀 About The Project
+## ✨ Neue Features in v2.0
 
-**VibeCoded-GeoGame** is an immersive, browser-based 3D globe experience built with modern WebGL and the `globe.gl` library. It bridges the gap between interactive geography education and casual gaming. 
+### 🎮 5 Abwechslungsreiche Spielmodi
+1. **🏳️ Flaggen-Meister:** Erkenne Länder anhand ihrer Nationalflagge über 10 spannende Runden.
+2. **🏛️ Hauptstadt-Sprint:** Ordne jedem Land die richtige Hauptstadt zu.
+3. **📍 Karten-Pinpoint (Neu):** Setze deinen eigenen Pin auf einer unbeschrifteten, interaktiven Dunkel-Weltkarte (Leaflet.js). Die Distanz zum echten Land wird per Haversine-Formel in Kilometern berechnet!
+4. **📈 Einwohner-Duell (Higher or Lower):** Entscheide im Survival-Modus, welches von zwei Ländern mehr Einwohner hat.
+5. **⚡ 60s Speed-Blitz:** Spiele gegen die Uhr! Richtige Antworten bringen dir wertvolle Bonus-Sekunden.
 
-Whether you want to explore mind-blowing facts about deep trenches, towering mountain peaks, and hidden natural wonders, or test your geographical skills in fast-paced mini-games, this app delivers smooth performance and a gorgeous sci-fi aesthetic right in your browser.
-
----
-
-## ✨ Key Features
-
-* **🌍 Stunning 3D Globe Visuals:** Powered by WebGL featuring a true Earth topography bump map, glowing atmospheric layers, a starry deep-space background, and pulsating energy markers.
-* **🛸 Dynamic Orbit Camera Flights:** Smooth, cinematic camera transitions that sweep across the planet accompanied by animated laser arcs when jumping between locations.
-* **🎯 Game Mode 1: Pin-Hunt (Geo-Hunter):** Test your map awareness! All location names transform into mystery markers (`❓`). Follow the region clues, find the correct spot on the globe, and rack up points.
-* **🧠 Game Mode 2: Earth Quiz:** An interactive trivia challenge featuring multiple-choice questions tied directly to global landmarks, complete with streak multipliers and instant feedback.
-* **📖 Exploration Mode:** Free-roam the globe, click any hot spot, and dive deep into fascinating earth science facts and records.
-* **💎 Glassmorphism UI:** Clean, futuristic user interface with sleek blur effects, responsive stats bars, and real-time score tracking.
-
----
-
-## 🛠️ Built With
-
-* **HTML5 & CSS3** (with Google Fonts *Space Grotesk* and custom glassmorphism styling)
-* **JavaScript (ES6+)**
-* **Globe.gl / Three.js** (for hardware-accelerated 3D rendering)
+### 🚀 Progression, Gamification & Tools
+* **XP-, Level- & Rang-System:** Steige vom *Tourist* bis zum *Weltmeister* auf.
+* **Tägliche Missionen (Daily Quests):** Drei tägliche Herausforderungen für Extra-XP.
+* **Joker-System:** Nutze den **50:50-Joker** oder lass dir einen **Geografie-Hinweis** (Subregion & Einwohnerzahl) anzeigen.
+* **Kontinent-Filter:** Trainiere gezielt *Weltweit*, *Europa*, *Asien*, *Amerika*, *Afrika* oder *Ozeanien*.
+* **Interaktiver Welt-Atlas:** Integriertes Nachschlagewerk mit Echtzeit-Suche und direkter Google-Maps-Verknüpfung.
+* **Web-Audio Sound-Synthesizer:** Dynamische Soundeffekte ganz ohne externe MP3-Dateien.
+* **Offline-Fallback:** Lädt live alle Staaten über die *REST Countries API* und nutzt bei fehlender Internetverbindung automatisch einen integrierten Offline-Datensatz.
 
 ---
 
-## 📥 Getting Started
+## 🛠️ Tech-Stack
 
-Running this project locally is super simple and requires **no installation or build steps** (no Node.js or npm required)!
+* **Frontend:** HTML5, Vanilla JavaScript (ES6+)
+* **Styling:** Tailwind CSS (CDN) + Custom Glassmorphism UI
+* **Karten-Engine:** [Leaflet.js](https://leafletjs.com/) + CartoDB Dark Matter Tiles
+* **Icons & Effekte:** [Lucide Icons](https://lucide.dev/) & `canvas-confetti`
+* **Datenbank / Persistenz:** `localStorage` für Highscores, XP, Streaks und Erfolge
 
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/YOUR-USERNAME/VibeCoded-GeoGame.git](https://github.com/YOUR-USERNAME/VibeCoded-GeoGame.git)
+---
+
+## 🚀 Schnellstart (Installation)
+
+Da das gesamte Projekt in einer einzigen `index.html` gebündelt ist, wird kein lokaler Node-Server oder Bundler benötigt:
+
+```bash
+# 1. Repository klonen
+git clone [https://github.com/dein-username/VibeCoded-GeoGame.git](https://github.com/dein-username/VibeCoded-GeoGame.git)
+
+# 2. In das Verzeichnis wechseln
+cd VibeCoded-GeoGame
+
+# 3. Direkt im Browser öffnen
+start index.html
