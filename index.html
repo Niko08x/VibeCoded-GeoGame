@@ -1,557 +1,1259 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TERRA // Interaktiver 3D-Globus & Mini-Games</title>
-    <script src="https://unpkg.com/globe.gl"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>VibeCoded GeoGame | World Explorer Edition</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS für den interaktiven Karten-Modus -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Space Grotesk', sans-serif;
-            user-select: none;
-        }
-        body {
-            background-color: #03050a;
-            color: #ffffff;
-            overflow: hidden;
-        }
-        #globeViz {
-            width: 100vw;
-            height: 100vh;
-            cursor: grab;
-        }
-        #globeViz:active {
-            cursor: grabbing;
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+
+        :root {
+            --bg-dark: #090d16;
+            --card-dark: rgba(17, 24, 39, 0.78);
         }
 
-        /* UI Overlays (Glassmorphism) */
-        .glass-panel {
-            background: rgba(12, 18, 32, 0.75);
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: #f8fafc;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, .font-display {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        .glass {
+            background: var(--card-dark);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(0, 210, 255, 0.25);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(0, 210, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
-        /* Header & Mode Switcher */
-        header {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            align-items: center;
-            gap: 24px;
-            padding: 12px 28px;
+        .glass-hover {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-hover:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 12px 30px -10px rgba(59, 130, 246, 0.25);
+        }
+
+        #map {
+            height: 440px;
+            width: 100%;
+            border-radius: 1rem;
             z-index: 10;
         }
-        .logo {
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: 2px;
-            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(0, 210, 255, 0.4);
-        }
-        .nav-buttons {
-            display: flex;
-            gap: 10px;
-        }
-        .btn {
-            background: rgba(255, 255, 255, 0.05);
-            color: #b0c4de;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 8px 16px;
-            border-radius: 10px;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.9rem;
-            transition: all 0.25s ease;
-        }
-        .btn:hover {
-            background: rgba(0, 210, 255, 0.15);
-            color: #fff;
-            border-color: #00d2ff;
-            transform: translateY(-2px);
-        }
-        .btn.active {
-            background: linear-gradient(135deg, #00d2ff, #0072ff);
-            color: #fff;
-            border-color: transparent;
-            box-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+
+        .leaflet-container {
+            background: #0f172a !important;
         }
 
-        /* Scoreboard */
-        .stats-bar {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            padding: 12px 20px;
-            display: flex;
-            gap: 20px;
-            z-index: 10;
-            font-weight: 600;
-        }
-        .stat-item span {
-            color: #00d2ff;
-            font-size: 1.2rem;
-            margin-left: 6px;
+        @keyframes pulse-border {
+            0%, 100% { border-color: rgba(59, 130, 246, 0.5); }
+            50% { border-color: rgba(16, 185, 129, 0.8); }
         }
 
-        /* Side Info & Game Panel */
-        #side-panel {
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            width: 380px;
-            max-width: calc(100vw - 60px);
-            padding: 24px;
-            z-index: 10;
-            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .panel-tag {
-            display: inline-block;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            padding: 4px 10px;
-            border-radius: 6px;
-            background: rgba(0, 210, 255, 0.2);
-            color: #00d2ff;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-        #panel-title {
-            font-size: 1.6rem;
-            margin-bottom: 10px;
-            line-height: 1.2;
-        }
-        #panel-desc {
-            color: #cbd5e1;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            margin-bottom: 16px;
+        .animate-border {
+            animation: pulse-border 3s infinite;
         }
 
-        /* Quiz & Game Options */
-        #quiz-options {
-            display: none;
-            flex-direction: column;
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .option-btn {
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: #fff;
-            padding: 10px 14px;
-            border-radius: 8px;
-            text-align: left;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.9rem;
-        }
-        .option-btn:hover {
-            background: rgba(0, 210, 255, 0.2);
-            border-color: #00d2ff;
-        }
-        .option-btn.correct {
-            background: rgba(16, 185, 129, 0.3);
-            border-color: #10b981;
-        }
-        .option-btn.wrong {
-            background: rgba(239, 68, 68, 0.3);
-            border-color: #ef4444;
-        }
-
-        /* Controls Hint */
-        .controls-hint {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            padding: 10px 16px;
-            font-size: 0.8rem;
-            color: #94a3b8;
-            z-index: 10;
-        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3b82f6; }
     </style>
 </head>
-<body>
+<body class="flex flex-col min-h-screen selection:bg-blue-500 selection:text-white">
 
-    <header class="glass-panel">
-        <div class="logo">TERRA 3D</div>
-        <div class="nav-buttons">
-            <button class="btn active" onclick="setMode('explore')" id="btn-explore">🌍 Entdecken</button>
-            <button class="btn" onclick="setMode('hunt')" id="btn-hunt">🎯 Pin-Jagd</button>
-            <button class="btn" onclick="setMode('quiz')" id="btn-quiz">🧠 Erde-Quiz</button>
+    <!-- Top Navigation & Player HUD -->
+    <header class="sticky top-0 z-40 glass border-b border-white/10 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <!-- Brand -->
+            <div class="flex items-center gap-3 cursor-pointer" onclick="app.showView('dashboard')">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 via-indigo-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                    <i data-lucide="globe-2" class="w-6 h-6 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="font-display font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-blue-100 to-emerald-300">VibeGeo</span>
+                        <span class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">v2.0</span>
+                    </div>
+                    <p class="text-xs text-slate-400 hidden sm:block">Interactive Geography Suite</p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <nav class="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-white/5">
+                <button onclick="app.showView('dashboard')" id="nav-dashboard" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow">
+                    <i data-lucide="gamepad-2" class="w-4 h-4"></i>
+                    <span>Spielen</span>
+                </button>
+                <button onclick="app.showView('atlas')" id="nav-atlas" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all">
+                    <i data-lucide="book-open" class="w-4 h-4"></i>
+                    <span>Welt-Atlas</span>
+                </button>
+                <button onclick="app.showView('achievements')" id="nav-achievements" class="nav-btn flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all">
+                    <i data-lucide="trophy" class="w-4 h-4"></i>
+                    <span>Erfolge</span>
+                </button>
+            </nav>
+
+            <!-- Player Stats Bar -->
+            <div class="flex items-center gap-4">
+                <!-- Level & XP -->
+                <div class="hidden md:flex items-center gap-3 bg-slate-900/90 px-3.5 py-1.5 rounded-xl border border-white/10">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center font-display font-bold text-indigo-400" id="hud-level">1</div>
+                    <div class="w-28">
+                        <div class="flex justify-between text-[11px] font-medium mb-1">
+                            <span class="text-slate-300" id="hud-rank">Tourist</span>
+                            <span class="text-indigo-400" id="hud-xp">0 / 500 XP</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                            <div id="hud-xp-bar" class="h-full bg-gradient-to-r from-blue-500 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Streak Counter -->
+                <div class="flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-xl text-amber-400 font-semibold text-sm" title="Aktuelle Serie">
+                    <i data-lucide="flame" class="w-4 h-4 fill-amber-400"></i>
+                    <span id="hud-streak">0</span>
+                </div>
+
+                <!-- Sound Toggle -->
+                <button onclick="app.toggleSound()" id="sound-btn" class="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/10 transition" title="Sound Effekte">
+                    <i data-lucide="volume-2" class="w-5 h-5" id="sound-icon"></i>
+                </button>
+            </div>
         </div>
     </header>
 
-    <div class="stats-bar glass-panel">
-        <div class="stat-item">Punkte: <span id="score">0</span></div>
-        <div class="stat-item">Streak: <span id="streak">0</span>🔥</div>
-    </div>
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
 
-    <div id="side-panel" class="glass-panel">
-        <div class="panel-tag" id="panel-tag">Entdecker-Modus</div>
-        <h2 id="panel-title">Willkommen im Orbit</h2>
-        <p id="panel-desc">Drehe den Globus mit der Maus und klicke auf die leuchtenden Energie-Marker, um spannende Geheimnisse und Rekorde unserer Erde zu lüften.</p>
-        <div id="quiz-options"></div>
-    </div>
+        <!-- ================= VIEW 1: DASHBOARD ================= -->
+        <section id="view-dashboard" class="space-y-8">
+            <!-- Hero Banner & Region Filter -->
+            <div class="glass rounded-3xl p-6 sm:p-8 relative overflow-hidden border border-white/10">
+                <div class="max-w-2xl space-y-4 relative z-10">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold">
+                        <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                        <span>Wähle deine Herausforderung</span>
+                    </div>
+                    <h1 class="text-3xl sm:text-5xl font-display font-bold tracking-tight text-white">
+                        Wie gut kennst du unseren <span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-400 to-emerald-400">Planeten?</span>
+                    </h1>
+                    <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+                        Sammle XP, knacke tägliche Missionen und meistere 5 verschiedene Spielmodi – vom schnellen Flaggen-Sprint bis zur präzisen Koordinaten-Suche auf der Weltkarte.
+                    </p>
+                    
+                    <!-- Region Filter Pills -->
+                    <div class="pt-2">
+                        <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold block mb-2">Kontinent-Filter:</span>
+                        <div class="flex flex-wrap gap-2" id="region-filters">
+                            <button onclick="app.setRegion('all')" data-region="all" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white shadow transition">🌍 Weltweit</button>
+                            <button onclick="app.setRegion('Europe')" data-region="Europe" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition">🇪🇺 Europa</button>
+                            <button onclick="app.setRegion('Asia')" data-region="Asia" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition">🌏 Asien</button>
+                            <button onclick="app.setRegion('Americas')" data-region="Americas" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition">🌎 Amerika</button>
+                            <button onclick="app.setRegion('Africa')" data-region="Africa" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition">🌍 Afrika</button>
+                            <button onclick="app.setRegion('Oceania')" data-region="Oceania" class="region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition">🏝️ Ozeanien</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
-    <div class="controls-hint glass-panel">
-        🖱️ Links ziehen: Drehen | 🖱️ Rechts ziehen: Schwenken | 📜 Scrollen: Zoomen
-    </div>
+            <!-- Game Modes Grid (5 Modes) -->
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-display font-bold flex items-center gap-2">
+                        <i data-lucide="compass" class="w-5 h-5 text-blue-400"></i>
+                        <span>Spielmodi</span>
+                    </h2>
+                    <span class="text-xs text-slate-400" id="active-pool-count">Lade Länderdaten...</span>
+                </div>
 
-    <div id="globeViz"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    <!-- Mode 1: Flag Master -->
+                    <div onclick="app.startGame('flags')" class="glass glass-hover rounded-2xl p-6 cursor-pointer flex flex-col justify-between group">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-2xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 group-hover:scale-110 transition">
+                                    <i data-lucide="flag" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">Klassiker • 10 Runden</span>
+                            </div>
+                            <h3 class="text-lg font-display font-bold text-white mb-1">Flaggen-Meister</h3>
+                            <p class="text-sm text-slate-400">Erkenne das richtige Land anhand seiner Nationalflagge. Nutze Joker, wenn es knifflig wird.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                            <span>Highscore: <strong class="text-white" id="hs-flags">0</strong></span>
+                            <span class="text-blue-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">Starten <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></span>
+                        </div>
+                    </div>
 
+                    <!-- Mode 2: Capital Rush -->
+                    <div onclick="app.startGame('capitals')" class="glass glass-hover rounded-2xl p-6 cursor-pointer flex flex-col justify-between group">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition">
+                                    <i data-lucide="building-2" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">Wissen • 10 Runden</span>
+                            </div>
+                            <h3 class="text-lg font-display font-bold text-white mb-1">Hauptstadt-Sprint</h3>
+                            <p class="text-sm text-slate-400">Von Canberra bis Ottawa: Ordne jedem Land die passende Hauptstadt zu.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                            <span>Highscore: <strong class="text-white" id="hs-capitals">0</strong></span>
+                            <span class="text-emerald-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">Starten <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Mode 3: Map Pinpoint (NEW Interactive Map Mode) -->
+                    <div onclick="app.startGame('map')" class="glass glass-hover rounded-2xl p-6 cursor-pointer flex flex-col justify-between group relative overflow-hidden border-indigo-500/30">
+                        <div class="absolute top-3 right-3 px-2 py-0.5 rounded bg-gradient-to-r from-indigo-500 to-purple-500 text-[10px] font-bold uppercase tracking-wider text-white">Neu</div>
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition">
+                                    <i data-lucide="map-pin" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-lg font-display font-bold text-white mb-1">Karten-Pinpoint</h3>
+                            <p class="text-sm text-slate-400">Setze deinen Pin direkt auf der interaktiven Weltkarte. Je geringer die Distanz in Kilometern, desto mehr Punkte!</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                            <span>Highscore: <strong class="text-white" id="hs-map">0</strong></span>
+                            <span class="text-indigo-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">Starten <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Mode 4: Higher or Lower (Population Battle) -->
+                    <div onclick="app.startGame('population')" class="glass glass-hover rounded-2xl p-6 cursor-pointer flex flex-col justify-between group">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition">
+                                    <i data-lucide="users" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-800 text-slate-300">Survival • Endlos</span>
+                            </div>
+                            <h3 class="text-lg font-display font-bold text-white mb-1">Einwohner-Duell</h3>
+                            <p class="text-sm text-slate-400">Higher or Lower: Welches der beiden Länder hat mehr Einwohner? Ein Fehler beendet deinen Lauf!</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                            <span>Rekord-Serie: <strong class="text-white" id="hs-population">0</strong></span>
+                            <span class="text-amber-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">Starten <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Mode 5: Speed Blitz (60s Timer) -->
+                    <div onclick="app.startGame('blitz')" class="glass glass-hover rounded-2xl p-6 cursor-pointer flex flex-col justify-between group">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 group-hover:scale-110 transition">
+                                    <i data-lucide="zap" class="w-6 h-6"></i>
+                                </div>
+                                <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-300">60 Sekunden</span>
+                            </div>
+                            <h3 class="text-lg font-display font-bold text-white mb-1">60s Speed-Blitz</h3>
+                            <p class="text-sm text-slate-400">Gegen die Uhr! Beantworte einen wilden Mix aus Flaggen, Hauptstädten und Regionen. Richtige Kombos geben Zeit-Boni.</p>
+                        </div>
+                        <div class="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+                            <span>Highscore: <strong class="text-white" id="hs-blitz">0</strong></span>
+                            <span class="text-rose-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">Starten <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i></span>
+                        </div>
+                    </div>
+
+                    <!-- Daily Quests Card -->
+                    <div class="glass rounded-2xl p-6 flex flex-col justify-between border border-emerald-500/20">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-display font-bold text-white flex items-center gap-2">
+                                    <i data-lucide="target" class="w-5 h-5 text-emerald-400"></i>
+                                    <span>Tages-Missionen</span>
+                                </h3>
+                                <span class="text-[11px] text-emerald-400 font-semibold">+150 Bonus XP</span>
+                            </div>
+                            <div class="space-y-3" id="daily-quests-list">
+                                <!-- Rendered via JS -->
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-4 pt-3 border-t border-white/5">Missionen setzen sich täglich um Mitternacht zurück.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= VIEW 2: ACTIVE GAME STAGE ================= -->
+        <section id="view-game" class="hidden max-w-4xl mx-auto">
+            <!-- Game Top Bar -->
+            <div class="glass rounded-2xl p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
+                <button onclick="app.quitGame()" class="flex items-center gap-2 text-sm text-slate-300 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800/80 border border-white/5 transition">
+                    <i data-lucide="arrow-left" class="w-4 h-4"></i>
+                    <span>Abbrechen</span>
+                </button>
+
+                <div class="flex items-center gap-6">
+                    <div class="text-center">
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Fortschritt</span>
+                        <span class="font-display font-bold text-base text-white" id="game-progress">1 / 10</span>
+                    </div>
+                    <div class="text-center">
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Punkte</span>
+                        <span class="font-display font-bold text-base text-emerald-400" id="game-score">0</span>
+                    </div>
+                    <div id="game-timer-box" class="hidden text-center">
+                        <span class="text-[10px] uppercase tracking-wider text-rose-400 block">Zeit</span>
+                        <span class="font-display font-bold text-base text-rose-400" id="game-timer">60s</span>
+                    </div>
+                </div>
+
+                <!-- Power-Ups / Lifelines -->
+                <div class="flex items-center gap-2" id="lifelines-bar">
+                    <button onclick="app.useFiftyFifty()" id="btn-5050" class="px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Entfernt 2 falsche Antworten">
+                        <i data-lucide="scissors" class="w-3.5 h-3.5"></i>
+                        <span>50:50</span>
+                    </button>
+                    <button onclick="app.useHint()" id="btn-hint" class="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition" title="Zeigt einen geografischen Hinweis">
+                        <i data-lucide="lightbulb" class="w-3.5 h-3.5"></i>
+                        <span>Hinweis</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Stage Container -->
+            <div class="glass rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden" id="game-stage-content">
+                <!-- Populated dynamically by game mode -->
+            </div>
+        </section>
+
+        <!-- ================= VIEW 3: WORLD ATLAS (ENCYCLOPEDIA) ================= -->
+        <section id="view-atlas" class="hidden space-y-6">
+            <div class="glass rounded-2xl p-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-2xl font-display font-bold text-white">Interaktiver Welt-Atlas</h2>
+                    <p class="text-sm text-slate-400">Durchsuche alle Länder, Hauptstädte, Einwohnerzahlen und direkte Kartenlinks zum Trainieren.</p>
+                </div>
+                <div class="relative w-full sm:w-80">
+                    <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="atlas-search" oninput="app.renderAtlas()" placeholder="Land oder Hauptstadt suchen..." class="w-full bg-slate-900/90 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="atlas-grid">
+                <!-- Populated via JS -->
+            </div>
+        </section>
+
+        <!-- ================= VIEW 4: ACHIEVEMENTS & STATS ================= -->
+        <section id="view-achievements" class="hidden space-y-6">
+            <div class="glass rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                    <h2 class="text-2xl font-display font-bold text-white">Erfolge & Spieler-Statistik</h2>
+                    <p class="text-sm text-slate-400">Dein gespeicherter Fortschritt im Überblick.</p>
+                </div>
+                <button onclick="app.resetProgress()" class="text-xs text-rose-400 hover:text-rose-300 border border-rose-500/30 px-3 py-2 rounded-xl bg-rose-500/10 transition">
+                    Spielstand zurücksetzen
+                </button>
+            </div>
+
+            <!-- Overall Stats KPI Cards -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div class="glass rounded-2xl p-5">
+                    <span class="text-xs text-slate-400">Gespielte Runden</span>
+                    <p class="text-2xl font-display font-bold text-white mt-1" id="stat-games">0</p>
+                </div>
+                <div class="glass rounded-2xl p-5">
+                    <span class="text-xs text-slate-400">Richtige Antworten</span>
+                    <p class="text-2xl font-display font-bold text-emerald-400 mt-1" id="stat-correct">0</p>
+                </div>
+                <div class="glass rounded-2xl p-5">
+                    <span class="text-xs text-slate-400">Beste Serie (Streak)</span>
+                    <p class="text-2xl font-display font-bold text-amber-400 mt-1" id="stat-best-streak">0</p>
+                </div>
+                <div class="glass rounded-2xl p-5">
+                    <span class="text-xs text-slate-400">Gesamt-XP</span>
+                    <p class="text-2xl font-display font-bold text-indigo-400 mt-1" id="stat-xp">0</p>
+                </div>
+            </div>
+
+            <!-- Achievements Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="achievements-grid">
+                <!-- Populated via JS -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-white/5 py-6 px-4 text-center text-xs text-slate-500 mt-12">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>VibeCoded GeoGame v2.0 • Modern Web Edition</span>
+            <span>Datenquelle: REST Countries API & eingebetteter Offline-Fallback</span>
+        </div>
+    </footer>
+
+    <!-- Application Logic -->
     <script>
-        // 1. Datenbank: Orte, Wissen & Quizfragen
-        const locations = [
-            {
-                id: 1,
-                name: "Marianengraben",
-                region: "Pazifischer Ozean",
-                lat: 11.35,
-                lng: 142.2,
-                color: "#00d2ff",
-                fact: "Der tiefste Punkt der Erde! Das 'Challenger-Tief' reicht rund 11.000 Meter unter die Meeresoberfläche. Würde man den Mount Everest hineinstellen, wären über 2 Kilometer Wasser darüber.",
-                quizQuestion: "Wie tief ist der Marianengraben an seiner tiefsten Stelle ungefähr?",
-                options: ["Ca. 4.500 Meter", "Ca. 8.848 Meter", "Ca. 11.000 Meter"],
-                answer: 2
-            },
-            {
-                id: 2,
-                name: "Amazonas-Regenwald",
-                region: "Südamerika",
-                lat: -3.46,
-                lng: -62.21,
-                color: "#10b981",
-                fact: "Hier befindet sich die größte Artenvielfalt der Welt. Ein einziger Hektar Regenwald beherbergt oft mehr Baumarten als ganz Europa zusammen!",
-                quizQuestion: "Welcher Fluss fließt durch dieses riesige Ökosystem und ist der wasserreichste der Erde?",
-                options: ["Nil", "Amazonas", "Jangtsekiang"],
-                answer: 1
-            },
-            {
-                id: 3,
-                name: "Mount Everest",
-                region: "Himalaya (Nepal / Tibet)",
-                lat: 27.98,
-                lng: 86.92,
-                color: "#f59e0b",
-                fact: "Mit 8.848 Metern der höchste Berg über dem Meeresspiegel. Durch die Kollision der indischen und eurasischen Erdplatten wächst er jedes Jahr noch um einige Millimeter.",
-                quizQuestion: "Warum wächst der Mount Everest auch heute noch leicht weiter?",
-                options: ["Durch Vulkanausbrüche", "Durch das Zusammenstoßen von Erdplatten", "Durch ewiges Eis an der Spitze"],
-                answer: 1
-            },
-            {
-                id: 4,
-                name: "Great Barrier Reef",
-                region: "Australien",
-                lat: -18.28,
-                lng: 147.69,
-                color: "#ec4899",
-                fact: "Das größte von Lebewesen geschaffene Strukturgebilde der Erde! Es erstreckt sich über 2.300 Kilometer und ist sogar aus dem Weltall mit bloßem Auge erkennbar.",
-                quizQuestion: "Woraus besteht das Great Barrier Reef hauptsächlich?",
-                options: ["Aus Vulkanstein", "Aus Milliarden winziger Korallenpolypen", "Aus versteinerten Algen"],
-                answer: 1
-            },
-            {
-                id: 5,
-                name: "Sahara-Wüste",
-                region: "Nordafrika",
-                lat: 23.41,
-                lng: 15.66,
-                color: "#eab308",
-                fact: "Die größte Trockenwüste der Erde ist fast so groß wie die gesamten USA. Überraschend: Nur etwa 20 % bestehen aus Sanddünen, der Rest sind Stein- und Geröllwüsten.",
-                quizQuestion: "Woraus besteht der Großteil der Sahara-Oberfläche?",
-                options: ["Feiner Wüstensand", "Stein- und Geröllflächen", "Salzkrusten"],
-                answer: 1
-            },
-            {
-                id: 6,
-                name: "Salar de Uyuni",
-                region: "Bolivien",
-                lat: -20.13,
-                lng: -67.48,
-                color: "#a855f7",
-                fact: "Die größte Salzpfanne der Erde! In der Regenzeit verwandelt eine dünne Wasserschicht die Fläche in den größten natürlichen Spiegel der Welt. Zudem lagert hier ein Großteil des weltweiten Lithiums.",
-                quizQuestion: "Welcher wichtige Rohstoff für E-Auto-Batterien lagert unter dem Salar de Uyuni?",
-                options: ["Lithium", "Kupfer", "Platin"],
-                answer: 0
-            },
-            {
-                id: 7,
-                name: "Krakatau & Pazifischer Feuerring",
-                region: "Indonesien",
-                lat: -6.10,
-                lng: 105.42,
-                color: "#ef4444",
-                fact: "Der Ausbruch des Krakatau im Jahr 1883 erzeugte das lauteste Geräusch der modernen Geschichte. Die Druckwelle umrundete die Erde siebenmal!",
-                quizQuestion: "Wie oft umrundete die Schall- und Druckwelle des Krakatau-Ausbruchs 1883 unseren Planeten?",
-                options: ["Einmal", "Dreimal", "Siebenmal"],
-                answer: 2
-            },
-            {
-                id: 8,
-                name: "Antarktisches Eisschild",
-                region: "Südpol",
-                lat: -82.86,
-                lng: 135.00,
-                color: "#38bdf8",
-                fact: "Die Antarktis speichert rund 70 % des weltweiten Süßwassers in Form von Eis. Der kälteste jemals dort gemessene Wert liegt bei eisigen -89,2 °C.",
-                quizQuestion: "Wie viel Prozent des weltweiten Süßwassers ist im Eis der Antarktis gebunden?",
-                options: ["Etwa 15 %", "Etwa 40 %", "Etwa 70 %"],
-                answer: 2
-            },
-            {
-                id: 9,
-                name: "Island – Mittelatlantischer Rücken",
-                region: "Nordatlantik",
-                lat: 64.96,
-                lng: -19.02,
-                color: "#22d3ee",
-                fact: "Auf Island kann man buchstäblich zwischen zwei Kontinenten spazieren: Hier driften die nordamerikanische und die eurasische Kontinentalplatte auseinander.",
-                quizQuestion: "Welche zwei Kontinentalplatten driften mitten durch Island auseinander?",
-                options: ["Afrikanische & Eurasische", "Nordamerikanische & Eurasische", "Pazifische & Nordamerikanische"],
-                answer: 1
-            },
-            {
-                id: 10,
-                name: "Baikalsee",
-                region: "Sibirien (Russland)",
-                lat: 53.55,
-                lng: 108.16,
-                color: "#60a5fa",
-                fact: "Mit 1.642 Metern der tiefste und mit über 25 Millionen Jahren auch der älteste Süßwassersee der Erde. Im Winter friert er so klar zu, dass man meterweit in die Tiefe blicken kann.",
-                quizQuestion: "Welchen doppelten Weltrekord hält der Baikalsee unter allen Seen der Erde?",
-                options: ["Wärmster und salzigster See", "Tiefster und ältester See", "Höchstgelegener und jüngster See"],
-                answer: 1
-            }
+        // --- FALLBACK DATASET (Falls Offline oder API langsam) ---
+        const FALLBACK_COUNTRIES = [
+            { code: "AT", name: "Österreich", capital: "Wien", region: "Europe", subregion: "Mitteleuropa", population: 9100000, area: 83871, latlng: [47.5162, 14.5501], flag: "https://flagcdn.com/w640/at.png" },
+            { code: "DE", name: "Deutschland", capital: "Berlin", region: "Europe", subregion: "Mitteleuropa", population: 84400000, area: 357022, latlng: [51.1657, 10.4515], flag: "https://flagcdn.com/w640/de.png" },
+            { code: "CH", name: "Schweiz", capital: "Bern", region: "Europe", subregion: "Mitteleuropa", population: 8800000, area: 41284, latlng: [46.8182, 8.2275], flag: "https://flagcdn.com/w640/ch.png" },
+            { code: "FR", name: "Frankreich", capital: "Paris", region: "Europe", subregion: "Westeuropa", population: 68000000, area: 551695, latlng: [46.2276, 2.2137], flag: "https://flagcdn.com/w640/fr.png" },
+            { code: "IT", name: "Italien", capital: "Rom", region: "Europe", subregion: "Südeuropa", population: 58900000, area: 301336, latlng: [41.8719, 12.5674], flag: "https://flagcdn.com/w640/it.png" },
+            { code: "ES", name: "Spanien", capital: "Madrid", region: "Europe", subregion: "Südeuropa", population: 48300000, area: 505992, latlng: [40.4637, -3.7492], flag: "https://flagcdn.com/w640/es.png" },
+            { code: "GB", name: "Vereinigtes Königreich", capital: "London", region: "Europe", subregion: "Nordeuropa", population: 67700000, area: 242900, latlng: [55.3781, -3.4360], flag: "https://flagcdn.com/w640/gb.png" },
+            { code: "SE", name: "Schweden", capital: "Stockholm", region: "Europe", subregion: "Nordeuropa", population: 10500000, area: 450295, latlng: [60.1282, 18.6435], flag: "https://flagcdn.com/w640/se.png" },
+            { code: "NO", name: "Norwegen", capital: "Oslo", region: "Europe", subregion: "Nordeuropa", population: 5500000, area: 385207, latlng: [60.4720, 8.4689], flag: "https://flagcdn.com/w640/no.png" },
+            { code: "PL", name: "Polen", capital: "Warschau", region: "Europe", subregion: "Osteuropa", population: 36800000, area: 312679, latlng: [51.9194, 19.1451], flag: "https://flagcdn.com/w640/pl.png" },
+            { code: "GR", name: "Griechenland", capital: "Athen", region: "Europe", subregion: "Südeuropa", population: 10300000, area: 131990, latlng: [39.0742, 21.8243], flag: "https://flagcdn.com/w640/gr.png" },
+            { code: "US", name: "Vereinigte Staaten", capital: "Washington, D.C.", region: "Americas", subregion: "Nordamerika", population: 334900000, area: 9372610, latlng: [37.0902, -95.7129], flag: "https://flagcdn.com/w640/us.png" },
+            { code: "CA", name: "Kanada", capital: "Ottawa", region: "Americas", subregion: "Nordamerika", population: 40000000, area: 9984670, latlng: [56.1304, -106.3468], flag: "https://flagcdn.com/w640/ca.png" },
+            { code: "MX", name: "Mexiko", capital: "Mexiko-Stadt", region: "Americas", subregion: "Mittelamerika", population: 128500000, area: 1964375, latlng: [23.6345, -102.5528], flag: "https://flagcdn.com/w640/mx.png" },
+            { code: "BR", name: "Brasilien", capital: "Brasília", region: "Americas", subregion: "Südamerika", population: 203000000, area: 8515767, latlng: [-14.2350, -51.9253], flag: "https://flagcdn.com/w640/br.png" },
+            { code: "AR", name: "Argentinien", capital: "Buenos Aires", region: "Americas", subregion: "Südamerika", population: 46600000, area: 2780400, latlng: [-38.4161, -63.6167], flag: "https://flagcdn.com/w640/ar.png" },
+            { code: "CL", name: "Chile", capital: "Santiago de Chile", region: "Americas", subregion: "Südamerika", population: 19600000, area: 756102, latlng: [-35.6751, -71.5430], flag: "https://flagcdn.com/w640/cl.png" },
+            { code: "CO", name: "Kolumbien", capital: "Bogotá", region: "Americas", subregion: "Südamerika", population: 52000000, area: 1141748, latlng: [4.5709, -74.2973], flag: "https://flagcdn.com/w640/co.png" },
+            { code: "JP", name: "Japan", capital: "Tokio", region: "Asia", subregion: "Ostasien", population: 124500000, area: 377930, latlng: [36.2048, 138.2529], flag: "https://flagcdn.com/w640/jp.png" },
+            { code: "KR", name: "Südkorea", capital: "Seoul", region: "Asia", subregion: "Ostasien", population: 51700000, area: 100210, latlng: [35.9078, 127.7669], flag: "https://flagcdn.com/w640/kr.png" },
+            { code: "CN", name: "China", capital: "Peking", region: "Asia", subregion: "Ostasien", population: 1410000000, area: 9706961, latlng: [35.8617, 104.1954], flag: "https://flagcdn.com/w640/cn.png" },
+            { code: "IN", name: "Indien", capital: "Neu-Delhi", region: "Asia", subregion: "Südasien", population: 1428000000, area: 3287590, latlng: [20.5937, 78.9629], flag: "https://flagcdn.com/w640/in.png" },
+            { code: "TH", name: "Thailand", capital: "Bangkok", region: "Asia", subregion: "Südostasien", population: 71800000, area: 513120, latlng: [15.8700, 100.9925], flag: "https://flagcdn.com/w640/th.png" },
+            { code: "VN", name: "Vietnam", capital: "Hanoi", region: "Asia", subregion: "Südostasien", population: 98800000, area: 331212, latlng: [14.0583, 108.2772], flag: "https://flagcdn.com/w640/vn.png" },
+            { code: "ID", name: "Indonesien", capital: "Jakarta", region: "Asia", subregion: "Südostasien", population: 277500000, area: 1904569, latlng: [-0.7893, 113.9213], flag: "https://flagcdn.com/w640/id.png" },
+            { code: "TR", name: "Türkei", capital: "Ankara", region: "Asia", subregion: "Westasien", population: 85300000, area: 783562, latlng: [38.9637, 35.2433], flag: "https://flagcdn.com/w640/tr.png" },
+            { code: "EG", name: "Ägypten", capital: "Kairo", region: "Africa", subregion: "Nordafrika", population: 112700000, area: 1002450, latlng: [26.8206, 30.8025], flag: "https://flagcdn.com/w640/eg.png" },
+            { code: "ZA", name: "Südafrika", capital: "Pretoria", region: "Africa", subregion: "Südafrika", population: 60400000, area: 1221037, latlng: [-30.5595, 22.9375], flag: "https://flagcdn.com/w640/za.png" },
+            { code: "NG", name: "Nigeria", capital: "Abuja", region: "Africa", subregion: "Westafrika", population: 223800000, area: 923768, latlng: [9.0820, 8.6753], flag: "https://flagcdn.com/w640/ng.png" },
+            { code: "KE", name: "Kenia", capital: "Nairobi", region: "Africa", subregion: "Ostafrika", population: 55100000, area: 580367, latlng: [-0.0236, 37.9062], flag: "https://flagcdn.com/w640/ke.png" },
+            { code: "MA", name: "Marokko", capital: "Rabat", region: "Africa", subregion: "Nordafrika", population: 37800000, area: 446550, latlng: [31.7917, -7.0926], flag: "https://flagcdn.com/w640/ma.png" },
+            { code: "AU", name: "Australien", capital: "Canberra", region: "Oceania", subregion: "Australien & Neuseeland", population: 26600000, area: 7692024, latlng: [-25.2744, 133.7751], flag: "https://flagcdn.com/w640/au.png" },
+            { code: "NZ", name: "Neuseeland", capital: "Wellington", region: "Oceania", subregion: "Australien & Neuseeland", population: 5200000, area: 270467, latlng: [-40.9006, 174.8860], flag: "https://flagcdn.com/w640/nz.png" }
         ];
 
-        // 2. Globale Spielvariablen
-        let currentMode = 'explore'; // 'explore', 'hunt', 'quiz'
-        let score = 0;
-        let streak = 0;
-        let currentTarget = null;
-
-        // 3. 3D-Globus initialisieren
-        const globeElement = document.getElementById('globeViz');
-        const world = Globe()(globeElement)
-            .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
-            .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
-            .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
-            .showAtmosphere(true)
-            .atmosphereColor('#00d2ff')
-            .atmosphereAltitude(0.22)
-            // Leuchtende 3D-Säulen (Points)
-            .pointsData(locations)
-            .pointLat('lat')
-            .pointLng('lng')
-            .pointColor('color')
-            .pointAltitude(0.06)
-            .pointRadius(0.65)
-            // Pulsierende Ringe um die Hotspots
-            .ringsData(locations)
-            .ringLat('lat')
-            .ringLng('lng')
-            .ringColor(d => t => `rgba(0, 210, 255, ${1 - t})`)
-            .ringMaxRadius(4.5)
-            .ringPropagationSpeed(2)
-            .ringRepeatPeriod(900)
-            // Labels auf dem Globus
-            .labelsData(locations)
-            .labelLat('lat')
-            .labelLng('lng')
-            .labelText(d => currentMode === 'hunt' ? '?' : d.name)
-            .labelSize(1.3)
-            .labelDotRadius(0.4)
-            .labelColor(() => 'rgba(255, 255, 255, 0.9)')
-            .labelResolution(2)
-            .labelAltitude(0.07)
-            // Klick-Events auf Marker oder Labels
-            .onPointClick(handleLocationClick)
-            .onLabelClick(handleLocationClick);
-
-        // Automatische Rotation aktivieren
-        world.controls().autoRotate = true;
-        world.controls().autoRotateSpeed = 0.6;
-        world.controls().enableDamping = true;
-
-        // Stoppe Auto-Rotation kurz beim Interagieren
-        globeElement.addEventListener('mousedown', () => {
-            world.controls().autoRotate = false;
-        });
-
-        // Fenstergröße dynamisch anpassen
-        window.addEventListener('resize', () => {
-            world.width(window.innerWidth).height(window.innerHeight);
-        });
-
-        // 4. Kamera-Flug-Funktion & Netzwerk-Bögen (Arcs)
-        let lastLocation = null;
-        function flyToLocation(loc, altitude = 1.6) {
-            world.pointOfView({ lat: loc.lat, lng: loc.lng, altitude: altitude }, 1400);
-            
-            // Zeichne einen animierten Laser-Bogen vom letzten Ort zum neuen Ort
-            if (lastLocation && lastLocation.id !== loc.id) {
-                world.arcsData([{
-                    startLat: lastLocation.lat,
-                    startLng: lastLocation.lng,
-                    endLat: loc.lat,
-                    endLng: loc.lng,
-                    color: ['#00d2ff', loc.color]
-                }])
-                .arcColor('color')
-                .arcDashLength(0.4)
-                .arcDashGap(0.2)
-                .arcDashAnimateTime(1500)
-                .arcStroke(0.8);
+        // --- WEB AUDIO SYNTHESIZER (Kein externes Audio-File nötig) ---
+        class SoundFX {
+            constructor() {
+                this.enabled = true;
+                this.ctx = null;
             }
-            lastLocation = loc;
-        }
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            play(type) {
+                if (!this.enabled) return;
+                try {
+                    this.init();
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
 
-        // 5. Modus-Steuerung
-        function setMode(mode) {
-            currentMode = mode;
-            document.querySelectorAll('.nav-buttons .btn').forEach(b => b.classList.remove('active'));
-            document.getElementById(`btn-${mode}`).classList.add('active');
-
-            const quizOptions = document.getElementById('quiz-options');
-            quizOptions.style.display = 'none';
-
-            // Labels aktualisieren (Im Pin-Jagd-Modus Namen verstecken!)
-            world.labelText(d => currentMode === 'hunt' ? '❓' : d.name);
-
-            if (mode === 'explore') {
-                updatePanel("Entdecker-Modus", "Wähle einen Ort auf der Erde", "Klicke auf einen beliebigen leuchtenden Punkt auf dem Globus, um hinzuzoomen und Fakten über unseren Planeten zu erfahren.");
-                world.controls().autoRotate = true;
-                world.pointOfView({ altitude: 2.2 }, 1200);
-            } 
-            else if (mode === 'hunt') {
-                world.controls().autoRotate = false;
-                startNextHunt();
-            } 
-            else if (mode === 'quiz') {
-                world.controls().autoRotate = false;
-                startNextQuiz();
+                    if (type === 'correct') {
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(523.25, now); // C5
+                        osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.12); // E5
+                        gain.gain.setValueAtTime(0.15, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                        osc.start(now);
+                        osc.stop(now + 0.3);
+                    } else if (type === 'wrong') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(196.00, now);
+                        osc.frequency.linearRampToValueAtTime(130.81, now + 0.25);
+                        gain.gain.setValueAtTime(0.12, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                        osc.start(now);
+                        osc.stop(now + 0.3);
+                    } else if (type === 'win') {
+                        [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                            const o = this.ctx.createOscillator();
+                            const g = this.ctx.createGain();
+                            o.connect(g);
+                            g.connect(this.ctx.destination);
+                            o.frequency.value = freq;
+                            g.gain.setValueAtTime(0.12, now + idx * 0.08);
+                            g.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.35);
+                            o.start(now + idx * 0.08);
+                            o.stop(now + idx * 0.08 + 0.35);
+                        });
+                    }
+                } catch (e) {}
             }
         }
 
-        // 6. Klick-Logik für Globus-Hotspots
-        function handleLocationClick(loc) {
-            if (currentMode === 'explore') {
-                flyToLocation(loc, 1.4);
-                updatePanel(loc.region, loc.name, loc.fact);
-            } 
-            else if (currentMode === 'hunt') {
-                if (!currentTarget) return;
-                
-                if (loc.id === currentTarget.id) {
-                    // Richtiger Pin gefunden!
-                    addScore(100);
-                    flyToLocation(loc, 1.5);
-                    updatePanel("✅ Volltreffer!", loc.name, `Stark! Du hast ${loc.name} (${loc.region}) gefunden. Nächstes Ziel lädt in 2,5 Sekunden...`);
-                    currentTarget = null;
-                    setTimeout(() => {
-                        if (currentMode === 'hunt') startNextHunt();
-                    }, 2500);
-                } else {
-                    // Falscher Pin!
-                    resetStreak();
-                    updatePanel("❌ Daneben!", `Das ist: ${loc.name}`, `Gesucht wird aber: "${currentTarget.name}" (${currentTarget.region}). Dreh den Globus und versuch es nochmal!`);
+        // --- ACHIEVEMENTS DEFINITIONS ---
+        const ACHIEVEMENTS = [
+            { id: 'first_game', title: 'Weltenbummler', desc: 'Schließe deine erste Spielrunde ab.', icon: 'compass', check: s => s.gamesPlayed >= 1 },
+            { id: 'streak_5', title: 'Heißer Kompass', desc: 'Erreiche eine Serie von 5 richtigen Antworten in Folge.', icon: 'flame', check: s => s.bestStreak >= 5 },
+            { id: 'streak_15', title: 'Unaufhaltsam', desc: 'Erreiche eine Serie von 15 richtigen Antworten.', icon: 'zap', check: s => s.bestStreak >= 15 },
+            { id: 'map_pro', title: 'Kartograf', desc: 'Erziele mindestens 3.500 Punkte im Karten-Pinpoint.', icon: 'map-pin', check: s => (s.highscores.map || 0) >= 3500 },
+            { id: 'centurion', title: 'Lexikon-Kopf', desc: 'Beantworte insgesamt 50 Fragen richtig.', icon: 'award', check: s => s.totalCorrect >= 50 },
+            { id: 'xp_master', title: 'Geo-Großmeister', desc: 'Sammle mindestens 2.500 Gesamt-XP.', icon: 'crown', check: s => s.xp >= 2500 }
+        ];
+
+        // --- MAIN APPLICATION CONTROLLER ---
+        const app = {
+            countries: [...FALLBACK_COUNTRIES],
+            filteredCountries: [...FALLBACK_COUNTRIES],
+            selectedRegion: 'all',
+            sfx: new SoundFX(),
+
+            // Persistent Player State
+            state: {
+                xp: 0,
+                streak: 0,
+                bestStreak: 0,
+                gamesPlayed: 0,
+                totalCorrect: 0,
+                highscores: { flags: 0, capitals: 0, map: 0, population: 0, blitz: 0 },
+                unlockedAchievements: [],
+                dailyQuests: {
+                    date: new Date().toDateString(),
+                    correctAnswers: 0,
+                    mapGames: 0,
+                    streakReached: 0
                 }
+            },
+
+            // Active Game Session State
+            session: {
+                mode: null,
+                round: 0,
+                maxRounds: 10,
+                score: 0,
+                currentQuestion: null,
+                comparisonCountry: null,
+                timer: null,
+                timeLeft: 60,
+                lifelines: { fifty: true, hint: true },
+                mapInstance: null,
+                userMarker: null,
+                targetMarker: null,
+                polyline: null
+            },
+
+            async init() {
+                this.loadState();
+                this.updateHUD();
+                this.renderDailyQuests();
+                lucide.createIcons();
+                await this.fetchAllCountries();
+            },
+
+            async fetchAllCountries() {
+                try {
+                    const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2,capital,region,subregion,population,area,latlng,flags,translations');
+                    if (!res.ok) throw new Error('API Error');
+                    const data = await res.json();
+                    const parsed = data
+                        .filter(c => c.capital && c.capital.length > 0 && c.latlng && c.latlng.length === 2 && c.population > 100000)
+                        .map(c => ({
+                            code: c.cca2,
+                            name: (c.translations && c.translations.deu && c.translations.deu.common) ? c.translations.deu.common : c.name.common,
+                            capital: c.capital[0],
+                            region: c.region,
+                            subregion: c.subregion || c.region,
+                            population: c.population,
+                            area: c.area || 0,
+                            latlng: c.latlng,
+                            flag: c.flags.svg || c.flags.png
+                        }));
+                    if (parsed.length >= 50) {
+                        this.countries = parsed.sort((a, b) => a.name.localeCompare(b.name));
+                    }
+                } catch (err) {
+                    console.log('Nutze integrierten Offline-Datensatz.');
+                }
+                this.setRegion(this.selectedRegion);
+                this.renderAtlas();
+            },
+
+            loadState() {
+                try {
+                    const saved = localStorage.getItem('vibegeo_state_v2');
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        this.state = { ...this.state, ...parsed, highscores: { ...this.state.highscores, ...(parsed.highscores || {}) } };
+                        if (!this.state.dailyQuests || this.state.dailyQuests.date !== new Date().toDateString()) {
+                            this.state.dailyQuests = { date: new Date().toDateString(), correctAnswers: 0, mapGames: 0, streakReached: 0 };
+                        }
+                    }
+                } catch (e) {}
+            },
+
+            saveState() {
+                try {
+                    localStorage.setItem('vibegeo_state_v2', JSON.stringify(this.state));
+                } catch (e) {}
+                this.updateHUD();
+                this.checkAchievements();
+                this.renderDailyQuests();
+            },
+
+            resetProgress() {
+                if (!confirm('Möchtest du wirklich deinen gesamten Spielstand, alle Highscores und XP zurücksetzen?')) return;
+                localStorage.removeItem('vibegeo_state_v2');
+                location.reload();
+            },
+
+            toggleSound() {
+                this.sfx.enabled = !this.sfx.enabled;
+                const icon = document.getElementById('sound-icon');
+                icon.setAttribute('data-lucide', this.sfx.enabled ? 'volume-2' : 'volume-x');
+                lucide.createIcons();
+            },
+
+            getRankTitle(level) {
+                const ranks = ['Tourist', 'Pfadfinder', 'Backpacker', 'Weltenbummler', 'Navigator', 'Kartograf', 'Geo-Experte', 'Weltmeister'];
+                return ranks[Math.min(level - 1, ranks.length - 1)];
+            },
+
+            updateHUD() {
+                const level = Math.floor(this.state.xp / 500) + 1;
+                const currentLevelXP = this.state.xp % 500;
+                const pct = Math.min(100, Math.round((currentLevelXP / 500) * 100));
+
+                document.getElementById('hud-level').textContent = level;
+                document.getElementById('hud-rank').textContent = this.getRankTitle(level);
+                document.getElementById('hud-xp').textContent = `${currentLevelXP} / 500 XP`;
+                document.getElementById('hud-xp-bar').style.width = `${pct}%`;
+                document.getElementById('hud-streak').textContent = this.state.streak;
+
+                // Highscores
+                Object.keys(this.state.highscores).forEach(k => {
+                    const el = document.getElementById(`hs-${k}`);
+                    if (el) el.textContent = this.state.highscores[k];
+                });
+
+                // Stats View
+                document.getElementById('stat-games').textContent = this.state.gamesPlayed;
+                document.getElementById('stat-correct').textContent = this.state.totalCorrect;
+                document.getElementById('stat-best-streak').textContent = this.state.bestStreak;
+                document.getElementById('stat-xp').textContent = this.state.xp;
+            },
+
+            renderDailyQuests() {
+                const q = this.state.dailyQuests;
+                const quests = [
+                    { label: 'Beantworte 15 Fragen richtig', current: Math.min(15, q.correctAnswers), max: 15 },
+                    { label: 'Spiele 1 Runde Karten-Pinpoint', current: Math.min(1, q.mapGames), max: 1 },
+                    { label: 'Erreiche eine 5er Antwort-Serie', current: Math.min(5, q.streakReached), max: 5 }
+                ];
+                const container = document.getElementById('daily-quests-list');
+                container.innerHTML = quests.map(item => {
+                    const done = item.current >= item.max;
+                    const pct = Math.round((item.current / item.max) * 100);
+                    return `
+                        <div class="bg-slate-900/70 p-3 rounded-xl border border-white/5">
+                            <div class="flex justify-between text-xs mb-1.5">
+                                <span class="${done ? 'line-through text-slate-400' : 'text-slate-200 font-medium'}">${item.label}</span>
+                                <span class="font-semibold ${done ? 'text-emerald-400' : 'text-slate-400'}">${item.current}/${item.max}</span>
+                            </div>
+                            <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                <div class="h-full ${done ? 'bg-emerald-400' : 'bg-blue-500'} transition-all" style="width:${pct}%"></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            },
+
+            setRegion(region) {
+                this.selectedRegion = region;
+                document.querySelectorAll('.region-btn').forEach(btn => {
+                    const active = btn.dataset.region === region;
+                    btn.className = active
+                        ? 'region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-blue-600 text-white shadow transition'
+                        : 'region-btn px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-slate-800/90 text-slate-300 hover:bg-slate-700 transition';
+                });
+
+                this.filteredCountries = region === 'all'
+                    ? [...this.countries]
+                    : this.countries.filter(c => c.region === region);
+
+                if (this.filteredCountries.length < 4) {
+                    this.filteredCountries = [...this.countries];
+                }
+
+                document.getElementById('active-pool-count').textContent = `${this.filteredCountries.length} Länder im aktuellen Pool`;
+            },
+
+            showView(viewName) {
+                this.clearGameTimer();
+                ['dashboard', 'game', 'atlas', 'achievements'].forEach(v => {
+                    document.getElementById(`view-${v}`).classList.add('hidden');
+                    const navBtn = document.getElementById(`nav-${v}`);
+                    if (navBtn) {
+                        navBtn.className = v === viewName
+                            ? 'nav-btn flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 text-white shadow'
+                            : 'nav-btn flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium text-slate-400 hover:text-white transition-all';
+                    }
+                });
+                document.getElementById(`view-${viewName}`).classList.remove('hidden');
+
+                if (viewName === 'atlas') this.renderAtlas();
+                if (viewName === 'achievements') this.renderAchievements();
+                lucide.createIcons();
+            },
+
+            // ================= GAME ENGINE =================
+            startGame(mode) {
+                this.clearGameTimer();
+                this.session = {
+                    mode,
+                    round: 1,
+                    maxRounds: mode === 'map' ? 5 : 10,
+                    score: 0,
+                    currentQuestion: null,
+                    comparisonCountry: null,
+                    timer: null,
+                    timeLeft: 60,
+                    lifelines: { fifty: true, hint: true },
+                    mapInstance: null
+                };
+
+                // Configure Top Bar
+                document.getElementById('game-timer-box').classList.toggle('hidden', mode !== 'blitz');
+                document.getElementById('lifelines-bar').classList.toggle('hidden', mode === 'map' || mode === 'population');
+                this.updateLifelineButtons();
+
+                if (mode === 'blitz') {
+                    this.session.timeLeft = 60;
+                    document.getElementById('game-timer').textContent = '60s';
+                    this.session.timer = setInterval(() => {
+                        this.session.timeLeft--;
+                        document.getElementById('game-timer').textContent = `${this.session.timeLeft}s`;
+                        if (this.session.timeLeft <= 0) {
+                            this.endGame();
+                        }
+                    }, 1000);
+                }
+
+                this.showView('game');
+                this.nextQuestion();
+            },
+
+            quitGame() {
+                this.clearGameTimer();
+                this.showView('dashboard');
+            },
+
+            clearGameTimer() {
+                if (this.session.timer) {
+                    clearInterval(this.session.timer);
+                    this.session.timer = null;
+                }
+            },
+
+            updateLifelineButtons() {
+                const b50 = document.getElementById('btn-5050');
+                const bHint = document.getElementById('btn-hint');
+                if (b50) b50.disabled = !this.session.lifelines.fifty;
+                if (b50) b50.classList.toggle('opacity-40', !this.session.lifelines.fifty);
+                if (bHint) bHint.disabled = !this.session.lifelines.hint;
+                if (bHint) bHint.classList.toggle('opacity-40', !this.session.lifelines.hint);
+            },
+
+            getRandomCountries(count, excludeCode = null) {
+                const pool = this.filteredCountries.filter(c => c.code !== excludeCode);
+                const shuffled = [...pool].sort(() => 0.5 - Math.random());
+                return shuffled.slice(0, count);
+            },
+
+            nextQuestion() {
+                const { mode, round, maxRounds, score } = this.session;
+
+                if (mode !== 'blitz' && mode !== 'population' && round > maxRounds) {
+                    return this.endGame();
+                }
+
+                document.getElementById('game-score').textContent = score;
+                document.getElementById('game-progress').textContent =
+                    mode === 'blitz' ? `Runde ${round}` :
+                    mode === 'population' ? `Serie: ${score}` :
+                    `${round} / ${maxRounds}`;
+
+                if (mode === 'flags' || mode === 'capitals' || mode === 'blitz') {
+                    this.renderQuizQuestion();
+                } else if (mode === 'population') {
+                    this.renderPopulationQuestion();
+                } else if (mode === 'map') {
+                    this.renderMapQuestion();
+                }
+                lucide.createIcons();
+            },
+
+            // --- MODE: FLAGS, CAPITALS & BLITZ ---
+            renderQuizQuestion() {
+                const mode = this.session.mode;
+                const subMode = mode === 'blitz' ? (Math.random() > 0.5 ? 'flags' : 'capitals') : mode;
+
+                const options = this.getRandomCountries(4);
+                const target = options[Math.floor(Math.random() * options.length)];
+                this.session.currentQuestion = { target, options, subMode };
+
+                const stage = document.getElementById('game-stage-content');
+                const promptText = subMode === 'flags'
+                    ? 'Zu welchem Land gehört diese Nationalflagge?'
+                    : `Was ist die Hauptstadt von <span class="text-blue-400">${target.name}</span>?`;
+
+                stage.innerHTML = `
+                    <div class="text-center max-w-2xl mx-auto space-y-6">
+                        <span class="text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                            ${subMode === 'flags' ? 'Flaggen-Erkennung' : 'Hauptstadt-Quiz'}
+                        </span>
+                        <h2 class="text-2xl sm:text-3xl font-display font-bold text-white">${promptText}</h2>
+
+                        ${subMode === 'flags' ? `
+                            <div class="my-6 flex justify-center">
+                                <img src="${target.flag}" alt="Flagge" class="h-44 sm:h-52 object-contain rounded-2xl shadow-2xl border border-white/10 bg-slate-900/50 p-2">
+                            </div>
+                        ` : `
+                            <div class="my-6 flex justify-center">
+                                <div class="px-6 py-4 rounded-2xl bg-slate-900/80 border border-white/10 inline-flex items-center gap-4">
+                                    <img src="${target.flag}" alt="Flagge" class="w-14 h-10 object-cover rounded-lg border border-white/10">
+                                    <div class="text-left">
+                                        <div class="text-xs text-slate-400">${target.subregion}</div>
+                                        <div class="font-display font-bold text-lg text-white">${target.name}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+
+                        <div id="hint-banner" class="hidden text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-xl py-2 px-4"></div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+                            ${options.map(opt => `
+                                <button onclick="app.submitQuizAnswer('${opt.code}')" data-code="${opt.code}" class="quiz-opt-btn p-4 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 text-left font-medium text-white transition flex items-center justify-between group">
+                                    <span>${subMode === 'flags' ? opt.name : opt.capital}</span>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-slate-500 group-hover:text-white transition"></i>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            },
+
+            submitQuizAnswer(selectedCode) {
+                const { target } = this.session.currentQuestion;
+                const isCorrect = selectedCode === target.code;
+                const buttons = document.querySelectorAll('.quiz-opt-btn');
+
+                buttons.forEach(btn => {
+                    btn.disabled = true;
+                    const code = btn.dataset.code;
+                    if (code === target.code) {
+                        btn.className = 'quiz-opt-btn p-4 rounded-2xl bg-emerald-500/20 border-2 border-emerald-500 text-left font-bold text-emerald-300 flex items-center justify-between';
+                    } else if (code === selectedCode && !isCorrect) {
+                        btn.className = 'quiz-opt-btn p-4 rounded-2xl bg-rose-500/20 border-2 border-rose-500 text-left font-bold text-rose-300 flex items-center justify-between';
+                    } else {
+                        btn.classList.add('opacity-40');
+                    }
+                });
+
+                if (isCorrect) {
+                    this.sfx.play('correct');
+                    const points = 100 + (this.state.streak * 10);
+                    this.session.score += points;
+                    this.recordAnswer(true, 25);
+                    if (this.session.mode === 'blitz') this.session.timeLeft += 2;
+                } else {
+                    this.sfx.play('wrong');
+                    this.recordAnswer(false, 5);
+                }
+
+                setTimeout(() => {
+                    this.session.round++;
+                    this.nextQuestion();
+                }, 1100);
+            },
+
+            useFiftyFifty() {
+                if (!this.session.lifelines.fifty || !this.session.currentQuestion) return;
+                this.session.lifelines.fifty = false;
+                this.updateLifelineButtons();
+
+                const { target, options } = this.session.currentQuestion;
+                const wrongCodes = options.filter(o => o.code !== target.code).map(o => o.code).slice(0, 2);
+                document.querySelectorAll('.quiz-opt-btn').forEach(btn => {
+                    if (wrongCodes.includes(btn.dataset.code)) {
+                        btn.disabled = true;
+                        btn.classList.add('opacity-25', 'line-through');
+                    }
+                });
+            },
+
+            useHint() {
+                if (!this.session.lifelines.hint || !this.session.currentQuestion) return;
+                this.session.lifelines.hint = false;
+                this.updateLifelineButtons();
+
+                const { target } = this.session.currentQuestion;
+                const banner = document.getElementById('hint-banner');
+                if (banner) {
+                    banner.classList.remove('hidden');
+                    banner.innerHTML = `💡 <strong>Hinweis:</strong> Liegt in <em>${target.subregion}</em> und hat ca. <strong>${target.population.toLocaleString('de-DE')}</strong> Einwohner.`;
+                }
+            },
+
+            // --- MODE: POPULATION HIGHER OR LOWER ---
+            renderPopulationQuestion() {
+                if (!this.session.comparisonCountry) {
+                    this.session.comparisonCountry = this.getRandomCountries(1)[0];
+                }
+                const left = this.session.comparisonCountry;
+                const right = this.getRandomCountries(1, left.code)[0];
+                this.session.currentQuestion = { left, right };
+
+                const stage = document.getElementById('game-stage-content');
+                stage.innerHTML = `
+                    <div class="text-center mb-6">
+                        <span class="text-xs font-semibold uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">Higher or Lower</span>
+                        <h2 class="text-2xl font-display font-bold text-white mt-2">Welches Land hat mehr Einwohner?</h2>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+                        <!-- Left Known Country -->
+                        <div class="p-6 rounded-2xl bg-slate-900/90 border border-white/10 flex flex-col items-center justify-center text-center space-y-4">
+                            <img src="${left.flag}" class="h-28 object-contain rounded-xl shadow border border-white/10">
+                            <div>
+                                <h3 class="text-2xl font-display font-bold text-white">${left.name}</h3>
+                                <p class="text-xs text-slate-400">${left.subregion}</p>
+                            </div>
+                            <div class="pt-2">
+                                <span class="text-xs text-slate-400 block">Einwohnerzahl</span>
+                                <span class="text-3xl font-display font-bold text-emerald-400">${left.population.toLocaleString('de-DE')}</span>
+                            </div>
+                        </div>
+
+                        <!-- Right Challenger Country -->
+                        <div class="p-6 rounded-2xl bg-slate-900/90 border border-blue-500/30 flex flex-col items-center justify-center text-center space-y-4">
+                            <img src="${right.flag}" class="h-28 object-contain rounded-xl shadow border border-white/10">
+                            <div>
+                                <h3 class="text-2xl font-display font-bold text-white">${right.name}</h3>
+                                <p class="text-xs text-slate-400">${right.subregion}</p>
+                            </div>
+                            <div id="pop-reveal-area" class="flex flex-col sm:flex-row gap-3 w-full pt-2">
+                                <button onclick="app.submitPopulationGuess('higher')" class="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition">
+                                    <i data-lucide="trending-up" class="w-4 h-4"></i>
+                                    <span>Mehr Einwohner</span>
+                                </button>
+                                <button onclick="app.submitPopulationGuess('lower')" class="flex-1 py-3 px-4 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition">
+                                    <i data-lucide="trending-down" class="w-4 h-4"></i>
+                                    <span>Weniger Einwohner</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            },
+
+            submitPopulationGuess(choice) {
+                const { left, right } = this.session.currentQuestion;
+                const isHigher = right.population >= left.population;
+                const correct = (choice === 'higher' && isHigher) || (choice === 'lower' && !isHigher);
+
+                const reveal = document.getElementById('pop-reveal-area');
+                reveal.innerHTML = `
+                    <div class="w-full text-center">
+                        <span class="text-xs text-slate-400 block">Einwohnerzahl</span>
+                        <span class="text-3xl font-display font-bold ${correct ? 'text-emerald-400' : 'text-rose-400'}">
+                            ${right.population.toLocaleString('de-DE')}
+                        </span>
+                    </div>
+                `;
+
+                if (correct) {
+                    this.sfx.play('correct');
+                    this.session.score++;
+                    this.session.comparisonCountry = right;
+                    this.recordAnswer(true, 30);
+                    setTimeout(() => this.nextQuestion(), 1200);
+                } else {
+                    this.sfx.play('wrong');
+                    this.recordAnswer(false, 5);
+                    setTimeout(() => this.endGame(), 1400);
+                }
+            },
+
+            // --- MODE: INTERACTIVE MAP PINPOINT ---
+            renderMapQuestion() {
+                const target = this.getRandomCountries(1)[0];
+                this.session.currentQuestion = { target, guessedLatLng: null };
+
+                const stage = document.getElementById('game-stage-content');
+                stage.innerHTML = `
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                        <div>
+                            <span class="text-xs font-semibold uppercase tracking-widest text-indigo-400">Karten-Pinpoint • Runde ${this.session.round} von ${this.session.maxRounds}</span>
+                            <h2 class="text-2xl font-display font-bold text-white flex items-center gap-3 mt-1">
+                                <span>Finde auf der Karte:</span>
+                                <span class="text-emerald-400">${target.name}</span>
+                                <img src="${target.flag}" class="h-6 rounded border border-white/20">
+                            </h2>
+                        </div>
+                        <button id="btn-confirm-pin" onclick="app.confirmMapPin()" disabled class="px-5 py-2.5 rounded-xl bg-blue-600 disabled:opacity-40 hover:bg-blue-500 text-white font-semibold text-sm transition">
+                            Pin bestätigen
+                        </button>
+                    </div>
+
+                    <div id="map" class="border border-white/10 shadow-inner"></div>
+                    <div id="map-feedback" class="hidden mt-4 p-4 rounded-2xl bg-slate-900/90 border border-white/10 flex flex-wrap items-center justify-between gap-4"></div>
+                `;
+
+                setTimeout(() => {
+                    const map = L.map('map', {
+                        center: [20, 10],
+                        zoom: 2,
+                        minZoom: 2,
+                        worldCopyJump: true
+                    });
+
+                    // CartoDB Dark Matter (Ohne Länder-Labels für echtes GeoGuessr-Feeling!)
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; OpenStreetMap &copy; CARTO',
+                        subdomains: 'abcd',
+                        maxZoom: 10
+                    }).addTo(map);
+
+                    this.session.mapInstance = map;
+
+                    map.on('click', (e) => {
+                        if (this.session.currentQuestion.locked) return;
+                        this.session.currentQuestion.guessedLatLng = e.latlng;
+                        if (this.session.userMarker) {
+                            this.session.userMarker.setLatLng(e.latlng);
+                        } else {
+                            this.session.userMarker = L.marker(e.latlng).addTo(map);
+                        }
+                        document.getElementById('btn-confirm-pin').disabled = false;
+                    });
+                }, 50);
+            },
+
+            calculateDistanceKm(lat1, lon1, lat2, lon2) {
+                const R = 6371;
+                const dLat = (lat2 - lat1) * Math.PI / 180;
+                const dLon = (lon2 - lon1) * Math.PI / 180;
+                const a = Math.sin(dLat / 2) ** 2 +
+                          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                          Math.sin(dLon / 2) ** 2;
+                return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            },
+
+            confirmMapPin() {
+                const q = this.session.currentQuestion;
+                if (!q || !q.guessedLatLng || q.locked) return;
+                q.locked = true;
+
+                const [tLat, tLng] = q.target.latlng;
+                const dist = this.calculateDistanceKm(q.guessedLatLng.lat, q.guessedLatLng.lng, tLat, tLng);
+                const points = Math.max(0, Math.round(1000 * Math.exp(-dist / 2200)));
+
+                this.session.score += points;
+                this.recordAnswer(points >= 500, Math.round(points / 15));
+
+                // Draw Target & Line on Map
+                const map = this.session.mapInstance;
+                const targetLatLng = L.latLng(tLat, tLng);
+
+                L.circleMarker(targetLatLng, {
+                    radius: 9,
+                    fillColor: '#10b981',
+                    color: '#ffffff',
+                    weight: 2,
+                    fillOpacity: 1
+                }).addTo(map).bindPopup(`<b>${q.target.name}</b> (${q.target.capital})`).openPopup();
+
+                L.polyline([q.guessedLatLng, targetLatLng], {
+                    color: '#3b82f6',
+                    weight: 3,
+                    dashArray: '6, 8'
+                }).addTo(map);
+
+                map.fitBounds(L.latLngBounds([q.guessedLatLng, targetLatLng]), { padding: [50, 50], maxZoom: 5 });
+
+                const fb = document.getElementById('map-feedback');
+                fb.classList.remove('hidden');
+                fb.innerHTML = `
+                    <div>
+                        <span class="text-xs text-slate-400">Abweichung vom Zielzentrum:</span>
+                        <div class="text-lg font-display font-bold text-white">${dist.toLocaleString('de-DE')} km entfernt • <span class="text-emerald-400">+${points} Punkte</span></div>
+                    </div>
+                    <button onclick="app.advanceMapRound()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm transition">
+                        Weiter
+                    </button>
+                `;
+            },
+
+            advanceMapRound() {
+                this.session.userMarker = null;
+                this.session.round++;
+                this.nextQuestion();
+            },
+
+            // --- RECORD STATS & END GAME ---
+            recordAnswer(isCorrect, earnedXp) {
+                this.state.xp += earnedXp;
+                if (isCorrect) {
+                    this.state.totalCorrect++;
+                    this.state.streak++;
+                    this.state.dailyQuests.correctAnswers++;
+                    if (this.state.streak > this.state.bestStreak) {
+                        this.state.bestStreak = this.state.streak;
+                    }
+                    if (this.state.streak > this.state.dailyQuests.streakReached) {
+                        this.state.dailyQuests.streakReached = this.state.streak;
+                    }
+                } else {
+                    this.state.streak = 0;
+                }
+                this.saveState();
+            },
+
+            endGame() {
+                this.clearGameTimer();
+                const { mode, score } = this.session;
+                this.state.gamesPlayed++;
+                if (mode === 'map') this.state.dailyQuests.mapGames++;
+
+                const isNewRecord = score > (this.state.highscores[mode] || 0);
+                if (isNewRecord) {
+                    this.state.highscores[mode] = score;
+                }
+                this.saveState();
+                this.sfx.play('win');
+
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+                }
+
+                const stage = document.getElementById('game-stage-content');
+                stage.innerHTML = `
+                    <div class="text-center max-w-lg mx-auto py-6 space-y-6">
+                        <div class="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-500 to-emerald-500 mx-auto flex items-center justify-center shadow-xl shadow-blue-500/20">
+                            <i data-lucide="trophy" class="w-10 h-10 text-white"></i>
+                        </div>
+
+                        <div>
+                            ${isNewRecord ? `<span class="px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider">🎉 Neuer Highscore!</span>` : ''}
+                            <h2 class="text-3xl font-display font-bold text-white mt-2">Runde abgeschlossen!</h2>
+                            <p class="text-slate-400 text-sm mt-1">Starke Leistung! Dein Fortschritt wurde automatisch gespeichert.</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4 bg-slate-900/90 p-5 rounded-2xl border border-white/10">
+                            <div>
+                                <span class="text-xs text-slate-400 block">Erzielter Score</span>
+                                <span class="text-3xl font-display font-bold text-emerald-400">${score}</span>
+                            </div>
+                            <div>
+                                <span class="text-xs text-slate-400 block">Bester Rekord</span>
+                                <span class="text-3xl font-display font-bold text-white">${this.state.highscores[mode]}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+                            <button onclick="app.startGame('${mode}')" class="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                                <span>Nochmal spielen</span>
+                            </button>
+                            <button onclick="app.showView('dashboard')" class="px-6 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm flex items-center justify-center gap-2 transition">
+                                <i data-lucide="layout-grid" class="w-4 h-4"></i>
+                                <span>Zum Hauptmenü</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                lucide.createIcons();
+            },
+
+            // ================= ATLAS & ACHIEVEMENTS VIEWS =================
+            renderAtlas() {
+                const query = (document.getElementById('atlas-search')?.value || '').toLowerCase().trim();
+                const list = this.countries.filter(c =>
+                    c.name.toLowerCase().includes(query) ||
+                    c.capital.toLowerCase().includes(query) ||
+                    c.subregion.toLowerCase().includes(query)
+                );
+
+                const grid = document.getElementById('atlas-grid');
+                grid.innerHTML = list.slice(0, 60).map(c => `
+                    <div class="glass rounded-2xl p-4 flex flex-col justify-between border border-white/5 hover:border-blue-500/30 transition">
+                        <div>
+                            <div class="flex items-center gap-3 mb-3">
+                                <img src="${c.flag}" alt="${c.name}" class="w-12 h-8 object-cover rounded border border-white/10">
+                                <div class="overflow-hidden">
+                                    <h3 class="font-display font-bold text-white text-sm truncate">${c.name}</h3>
+                                    <span class="text-[11px] text-slate-400 block truncate">${c.subregion}</span>
+                                </div>
+                            </div>
+                            <div class="space-y-1 text-xs text-slate-300 bg-slate-900/60 p-3 rounded-xl">
+                                <div class="flex justify-between"><span class="text-slate-400">Hauptstadt:</span> <strong class="text-white">${c.capital}</strong></div>
+                                <div class="flex justify-between"><span class="text-slate-400">Einwohner:</span> <span>${c.population.toLocaleString('de-DE')}</span></div>
+                            </div>
+                        </div>
+                        <a href="https://www.google.com/maps/search/?api=1&query=${c.latlng[0]},${c.latlng[1]}" target="_blank" class="mt-3 text-xs text-blue-400 hover:text-blue-300 flex items-center justify-end gap-1 font-medium">
+                            <span>Auf Karte zeigen</span>
+                            <i data-lucide="external-link" class="w-3 h-3"></i>
+                        </a>
+                    </div>
+                `).join('');
+                lucide.createIcons();
+            },
+
+            checkAchievements() {
+                ACHIEVEMENTS.forEach(ach => {
+                    if (!this.state.unlockedAchievements.includes(ach.id) && ach.check(this.state)) {
+                        this.state.unlockedAchievements.push(ach.id);
+                    }
+                });
+            },
+
+            renderAchievements() {
+                this.checkAchievements();
+                const grid = document.getElementById('achievements-grid');
+                grid.innerHTML = ACHIEVEMENTS.map(ach => {
+                    const unlocked = this.state.unlockedAchievements.includes(ach.id);
+                    return `
+                        <div class="glass rounded-2xl p-5 flex items-start gap-4 border ${unlocked ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-white/5 opacity-55'}">
+                            <div class="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${unlocked ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}">
+                                <i data-lucide="${ach.icon}" class="w-6 h-6"></i>
+                            </div>
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <h3 class="font-display font-bold text-white text-sm">${ach.title}</h3>
+                                    ${unlocked ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">Freigeschaltet</span>` : ''}
+                                </div>
+                                <p class="text-xs text-slate-400 mt-1">${ach.desc}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                lucide.createIcons();
             }
-            else if (currentMode === 'quiz') {
-                flyToLocation(loc, 1.5);
-            }
-        }
+        };
 
-        // 7. Mini-Game 1: Pin-Jagd (Geo-Hunter)
-        function startNextHunt() {
-            const randomLoc = locations[Math.floor(Math.random() * locations.length)];
-            currentTarget = randomLoc;
-            // Kamera leicht herauszoomen, damit man suchen muss
-            world.pointOfView({ altitude: 2.3 }, 1000);
-            updatePanel(
-                "🎯 Pin-Jagd Mission", 
-                `Finde: ${randomLoc.name}`, 
-                `Hinweis: Dieser Ort befindet sich in der Region "${randomLoc.region}". Suche den richtigen Pin auf dem Globus und klicke ihn an!`
-            );
-        }
-
-        // 8. Mini-Game 2: Erde-Quiz
-        function startNextQuiz() {
-            const randomLoc = locations[Math.floor(Math.random() * locations.length)];
-            currentTarget = randomLoc;
-            
-            // Fliege direkt zum Ort der Frage
-            flyToLocation(randomLoc, 1.5);
-            
-            updatePanel(
-                `🧠 Quiz: ${randomLoc.name}`,
-                randomLoc.quizQuestion,
-                `Ort: ${randomLoc.region}`
-            );
-
-            const quizContainer = document.getElementById('quiz-options');
-            quizContainer.innerHTML = '';
-            quizContainer.style.display = 'flex';
-
-            randomLoc.options.forEach((optText, idx) => {
-                const btn = document.createElement('button');
-                btn.className = 'option-btn';
-                btn.innerText = optText;
-                btn.onclick = () => checkQuizAnswer(idx, btn);
-                quizContainer.appendChild(btn);
-            });
-        }
-
-        function checkQuizAnswer(selectedIndex, btnElement) {
-            const allButtons = document.querySelectorAll('.option-btn');
-            allButtons.forEach(b => b.disabled = true);
-
-            if (selectedIndex === currentTarget.answer) {
-                btnElement.classList.add('correct');
-                addScore(150);
-                document.getElementById('panel-desc').innerText = "✅ Richtig! " + currentTarget.fact;
-            } else {
-                btnElement.classList.add('wrong');
-                allButtons[currentTarget.answer].classList.add('correct');
-                resetStreak();
-                document.getElementById('panel-desc').innerText = "❌ Leider falsch! " + currentTarget.fact;
-            }
-
-            setTimeout(() => {
-                if (currentMode === 'quiz') startNextQuiz();
-            }, 3800);
-        }
-
-        // 9. Hilfsfunktionen für UI & Score
-        function updatePanel(tag, title, desc) {
-            document.getElementById('panel-tag').innerText = tag;
-            document.getElementById('panel-title').innerText = title;
-            document.getElementById('panel-desc').innerText = desc;
-        }
-
-        function addScore(points) {
-            streak++;
-            score += points + (streak * 10);
-            document.getElementById('score').innerText = score;
-            document.getElementById('streak').innerText = streak;
-        }
-
-        function resetStreak() {
-            streak = 0;
-            document.getElementById('streak').innerText = streak;
-        }
+        window.addEventListener('DOMContentLoaded', () => app.init());
     </script>
 </body>
 </html>
